@@ -49,6 +49,10 @@ const userSchema = new mongoose.Schema({
   resetOtpExpiry: {
     type: Date,
     default: null
+  },
+  lastLogin: {
+    type: Date,
+    default: null
   }
 }, { 
   timestamps: true 
@@ -66,6 +70,37 @@ userSchema.pre('save', async function(next) {
     next(error);
   }
 });
+
+// Compare password method
+userSchema.methods.comparePassword = async function(candidatePassword) {
+  return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// Generate JWT token method
+userSchema.methods.generateAuthToken = function() {
+  const jwt = require('jsonwebtoken');
+  return jwt.sign(
+    { 
+      userId: this._id.toString(),
+      email: this.email,
+      name: this.name,
+      role: this.role 
+    },
+    process.env.JWT_SECRET || 'your_jwt_secret_here_change_in_production',
+    { expiresIn: '7d' } // Token expires in 7 days
+  );
+};
+
+// Method to get user info without sensitive data
+userSchema.methods.toJSON = function() {
+  const user = this.toObject();
+  delete user.password;
+  delete user.otp;
+  delete user.otpExpiry;
+  delete user.resetOtp;
+  delete user.resetOtpExpiry;
+  return user;
+};
 
 const User = mongoose.model('User', userSchema);
 

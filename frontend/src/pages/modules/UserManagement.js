@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { 
   Container, Row, Col, Table, Button, Modal, Form, 
-  Spinner, Badge, Card, InputGroup, Alert 
+  Spinner, Badge, Card, InputGroup, Alert, ListGroup
 } from "react-bootstrap";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import axios from "axios";
-import { Edit2, Trash2, Eye, EyeOff, Search, Plus, UserCheck, UserX, Shield } from 'react-feather';
+import { Edit2, Trash2, Eye, EyeOff, Search, Plus, UserCheck, UserX, Shield, Info, Mail } from 'react-feather';
 
 // Colors from your login CSS
 const loginColors = {
@@ -25,6 +25,8 @@ const loginColors = {
 const UserManagement = () => {
   const [showModal, setShowModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -60,8 +62,17 @@ const UserManagement = () => {
     setIsLoading(true);
     try {
       const response = await axios.get("http://localhost:5000/api/users");
-      setUsers(response.data);
-      setFilteredUsers(response.data);
+      // Sort users: Active first, then by name
+      const sortedUsers = response.data.sort((a, b) => {
+        // First sort by active status (active users first)
+        if (a.isActive && !b.isActive) return -1;
+        if (!a.isActive && b.isActive) return 1;
+        
+        // Then sort by name alphabetically
+        return a.name.localeCompare(b.name);
+      });
+      setUsers(sortedUsers);
+      setFilteredUsers(sortedUsers);
     } catch (error) {
       console.error("Error fetching users:", error);
       toast.error("Failed to fetch users");
@@ -87,7 +98,14 @@ const UserManagement = () => {
       );
     });
     
-    setFilteredUsers(filtered);
+    // Maintain the same sorting order
+    const sortedFiltered = filtered.sort((a, b) => {
+      if (a.isActive && !b.isActive) return -1;
+      if (!a.isActive && b.isActive) return 1;
+      return a.name.localeCompare(b.name);
+    });
+    
+    setFilteredUsers(sortedFiltered);
   };
 
   const handleInputChange = (e) => {
@@ -144,6 +162,11 @@ const UserManagement = () => {
     }
   };
 
+  const handleViewUser = (user) => {
+    setSelectedUser(user);
+    setShowViewModal(true);
+  };
+
   const handleEditUser = (user) => {
     setEditFormData({
       name: user.name,
@@ -181,6 +204,7 @@ const UserManagement = () => {
       toast.success("User updated successfully!");
       fetchUsers();
       setShowEditModal(false);
+      setShowViewModal(false);
     } catch (error) {
       console.error("Update error:", error);
       const errorMessage = error.response?.data?.message || error.message || "Failed to update user";
@@ -213,6 +237,7 @@ const UserManagement = () => {
 
       toast.success(`User ${action}d successfully!`);
       fetchUsers();
+      setShowViewModal(false);
     } catch (error) {
       toast.error(`Failed to ${action} user`);
     } finally {
@@ -241,6 +266,7 @@ const UserManagement = () => {
       await axios.delete(`http://localhost:5000/api/users/${userToDelete._id}`);
       toast.success("User deleted successfully!");
       fetchUsers();
+      setShowViewModal(false);
     } catch (error) {
       toast.error("Failed to delete user");
     } finally {
@@ -478,7 +504,7 @@ const UserManagement = () => {
                   <th className="align-middle py-3 text-center">Role</th>
                   <th className="align-middle py-3 text-center">Status</th>
                   <th className="align-middle py-3 text-center">OTP Status</th>
-                  <th className="align-middle py-3 text-center pe-4" style={{ borderTopRightRadius: '15px' }}>Actions</th>
+                  <th className="align-middle py-3 text-center pe-4" style={{ borderTopRightRadius: '15px', width: '160px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -528,7 +554,32 @@ const UserManagement = () => {
                         {getOTPStatusBadge(user.isFirstLogin)}
                       </td>
                       <td className="py-3 text-center pe-4">
-                        <div className="d-flex gap-2 justify-content-center">
+                        <div className="d-flex gap-2 justify-content-center align-items-center" style={{ width: '160px', margin: '0 auto' }}>
+                          {/* View Button */}
+                          <button 
+                            onClick={() => handleViewUser(user)}
+                            disabled={isLoading}
+                            className="btn btn-link p-1"
+                            title="View Details"
+                            style={{ 
+                              textDecoration: 'none',
+                              color: loginColors.primary,
+                              borderRadius: '6px',
+                              transition: 'all 0.2s ease',
+                              width: '36px',
+                              height: '36px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
+                            }}
+                            onMouseEnter={(e) => e.target.style.backgroundColor = '#f0f2ff'}
+                            onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                          >
+                            <Eye size={18} />
+                          </button>
+                          
+                          {/* Edit Button */}
                           <button 
                             onClick={() => handleEditUser(user)}
                             disabled={isLoading}
@@ -536,35 +587,23 @@ const UserManagement = () => {
                             title="Edit User"
                             style={{ 
                               textDecoration: 'none',
-                              color: loginColors.primary,
+                              color: loginColors.accent,
                               borderRadius: '6px',
-                              transition: 'all 0.2s ease'
+                              transition: 'all 0.2s ease',
+                              width: '36px',
+                              height: '36px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
                             }}
-                            onMouseEnter={(e) => e.target.style.backgroundColor = '#f0f2ff'}
+                            onMouseEnter={(e) => e.target.style.backgroundColor = '#e0f7fa'}
                             onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                           >
                             <Edit2 size={18} />
                           </button>
                           
-                          {user.isFirstLogin && user.isActive && (
-                            <button 
-                              onClick={() => handleResendOTP(user._id, user.email)}
-                              disabled={isLoading}
-                              className="btn btn-link p-1"
-                              title="Resend OTP"
-                              style={{ 
-                                textDecoration: 'none',
-                                color: loginColors.accent,
-                                borderRadius: '6px',
-                                transition: 'all 0.2s ease'
-                              }}
-                              onMouseEnter={(e) => e.target.style.backgroundColor = '#e0f7fa'}
-                              onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                            >
-                              <Shield size={18} />
-                            </button>
-                          )}
-                          
+                          {/* Toggle Status Button */}
                           <button 
                             onClick={() => handleToggleStatus(user)}
                             disabled={isLoading || isPredefined}
@@ -574,7 +613,13 @@ const UserManagement = () => {
                               textDecoration: 'none',
                               color: user.isActive ? loginColors.warning : loginColors.success,
                               borderRadius: '6px',
-                              transition: 'all 0.2s ease'
+                              transition: 'all 0.2s ease',
+                              width: '36px',
+                              height: '36px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
                             }}
                             onMouseEnter={(e) => e.target.style.backgroundColor = '#fff3e0'}
                             onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
@@ -582,6 +627,7 @@ const UserManagement = () => {
                             {user.isActive ? <UserX size={18} /> : <UserCheck size={18} />}
                           </button>
                           
+                          {/* Delete Button */}
                           <button 
                             onClick={() => handleDeleteUser(user.email)}
                             disabled={isLoading || isPredefined}
@@ -591,7 +637,13 @@ const UserManagement = () => {
                               textDecoration: 'none',
                               color: loginColors.danger,
                               borderRadius: '6px',
-                              transition: 'all 0.2s ease'
+                              transition: 'all 0.2s ease',
+                              width: '36px',
+                              height: '36px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0
                             }}
                             onMouseEnter={(e) => e.target.style.backgroundColor = '#ffebee'}
                             onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
@@ -1030,6 +1082,208 @@ const UserManagement = () => {
               </Button>
             </div>
           </Form>
+        </Modal.Body>
+      </Modal>
+
+      {/* View User Details Modal */}
+      <Modal 
+        show={showViewModal} 
+        onHide={() => setShowViewModal(false)}
+        centered
+        size="lg"
+      >
+        <Modal.Header 
+          closeButton 
+          className="py-3 border-0"
+          style={{ 
+            background: `linear-gradient(135deg, ${loginColors.primary}, ${loginColors.secondary})`,
+            color: 'white'
+          }}
+        >
+          <Modal.Title className="fs-5 fw-bold">User Details</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="py-4 px-4" style={{ backgroundColor: 'white' }}>
+          {selectedUser && (
+            <div>
+              {/* User Information */}
+              <div className="mb-4">
+                <h6 className="fw-bold mb-3" style={{ color: loginColors.primary }}>User Information</h6>
+                <ListGroup variant="flush">
+                  <ListGroup.Item className="d-flex justify-content-between align-items-center py-2 border-0">
+                    <span className="fw-medium" style={{ color: loginColors.darkText }}>Name:</span>
+                    <span style={{ color: '#666' }}>{selectedUser.name}</span>
+                  </ListGroup.Item>
+                  <ListGroup.Item className="d-flex justify-content-between align-items-center py-2 border-0">
+                    <span className="fw-medium" style={{ color: loginColors.darkText }}>Email:</span>
+                    <span style={{ color: '#666' }}>{selectedUser.email}</span>
+                  </ListGroup.Item>
+                  <ListGroup.Item className="d-flex justify-content-between align-items-center py-2 border-0">
+                    <span className="fw-medium" style={{ color: loginColors.darkText }}>Role:</span>
+                    <Badge 
+                      style={{ 
+                        backgroundColor: selectedUser.role === 'Admin' ? '#ff9800' : '#2196f3',
+                        color: 'white',
+                        padding: '0.4em 0.8em',
+                        fontSize: '0.85em',
+                        fontWeight: '500'
+                      }}
+                    >
+                      {formatRole(selectedUser.role)}
+                    </Badge>
+                  </ListGroup.Item>
+                  <ListGroup.Item className="d-flex justify-content-between align-items-center py-2 border-0">
+                    <span className="fw-medium" style={{ color: loginColors.darkText }}>Status:</span>
+                    {getStatusBadge(selectedUser.isActive)}
+                  </ListGroup.Item>
+                  <ListGroup.Item className="d-flex justify-content-between align-items-center py-2 border-0">
+                    <span className="fw-medium" style={{ color: loginColors.darkText }}>OTP Verification:</span>
+                    {getOTPStatusBadge(selectedUser.isFirstLogin)}
+                  </ListGroup.Item>
+                </ListGroup>
+              </div>
+
+              {/* Actions Section */}
+              <div className="mb-4">
+                <h6 className="fw-bold mb-3" style={{ color: loginColors.primary }}>Actions</h6>
+                <div className="row g-3">
+                  {/* Resend OTP Button - Only show if user needs OTP */}
+                  {selectedUser.isFirstLogin && selectedUser.isActive && (
+                    <div className="col-md-6">
+                      <Button 
+                        onClick={() => handleResendOTP(selectedUser._id, selectedUser.email)}
+                        disabled={isLoading}
+                        variant="outline-primary"
+                        className="w-100 py-2 d-flex align-items-center justify-content-center"
+                        style={{ 
+                          border: `1px solid ${loginColors.accent}`,
+                          color: loginColors.accent,
+                          borderRadius: '8px',
+                          fontWeight: '500',
+                          transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.target.style.backgroundColor = '#e0f7fa';
+                          e.target.style.color = loginColors.primary;
+                        }}
+                        onMouseLeave={(e) => {
+                          e.target.style.backgroundColor = 'transparent';
+                          e.target.style.color = loginColors.accent;
+                        }}
+                      >
+                        <Mail size={16} className="me-2" />
+                        Resend OTP
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {/* Edit Button */}
+                  <div className="col-md-6">
+                    <Button 
+                      onClick={() => {
+                        setShowViewModal(false);
+                        handleEditUser(selectedUser);
+                      }}
+                      disabled={isLoading}
+                      variant="outline-primary"
+                      className="w-100 py-2 d-flex align-items-center justify-content-center"
+                      style={{ 
+                        border: `1px solid ${loginColors.primary}`,
+                        color: loginColors.primary,
+                        borderRadius: '8px',
+                        fontWeight: '500',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = '#f0f2ff';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      <Edit2 size={16} className="me-2" />
+                      Edit User
+                    </Button>
+                  </div>
+                  
+                  {/* Toggle Status Button */}
+                  <div className="col-md-6">
+                    <Button 
+                      onClick={() => handleToggleStatus(selectedUser)}
+                      disabled={isLoading || predefinedAccounts.includes(selectedUser.email.toLowerCase())}
+                      variant="outline-warning"
+                      className="w-100 py-2 d-flex align-items-center justify-content-center"
+                      style={{ 
+                        border: `1px solid ${selectedUser.isActive ? loginColors.warning : loginColors.success}`,
+                        color: selectedUser.isActive ? loginColors.warning : loginColors.success,
+                        borderRadius: '8px',
+                        fontWeight: '500',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = selectedUser.isActive ? '#fff3e0' : '#e8f5e9';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      {selectedUser.isActive ? (
+                        <>
+                          <UserX size={16} className="me-2" />
+                          Deactivate User
+                        </>
+                      ) : (
+                        <>
+                          <UserCheck size={16} className="me-2" />
+                          Activate User
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {/* Delete Button */}
+                  <div className="col-md-6">
+                    <Button 
+                      onClick={() => handleDeleteUser(selectedUser.email)}
+                      disabled={isLoading || predefinedAccounts.includes(selectedUser.email.toLowerCase())}
+                      variant="outline-danger"
+                      className="w-100 py-2 d-flex align-items-center justify-content-center"
+                      style={{ 
+                        border: `1px solid ${loginColors.danger}`,
+                        color: loginColors.danger,
+                        borderRadius: '8px',
+                        fontWeight: '500',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = '#ffebee';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = 'transparent';
+                      }}
+                    >
+                      <Trash2 size={16} className="me-2" />
+                      Delete User
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Warning for predefined accounts */}
+              {predefinedAccounts.includes(selectedUser.email.toLowerCase()) && (
+                <Alert variant="info" className="mt-3" style={{ 
+                  backgroundColor: '#e3f2fd',
+                  borderColor: '#bbdefb',
+                  color: '#1565c0',
+                  borderRadius: '8px',
+                  border: 'none',
+                  fontSize: '0.9rem'
+                }}>
+                  <Info size={16} className="me-2" />
+                  This is a predefined system account. Some actions are restricted for security reasons.
+                </Alert>
+              )}
+            </div>
+          )}
         </Modal.Body>
       </Modal>
     </Container>

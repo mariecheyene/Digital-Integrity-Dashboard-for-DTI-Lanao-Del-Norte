@@ -1,4 +1,6 @@
-// Authentication middleware
+const jwt = require('jsonwebtoken');
+
+// Authentication middleware - verifies JWT token
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
@@ -10,16 +12,21 @@ const authenticateToken = (req, res, next) => {
     });
   }
 
-  // In a real system, you'd verify JWT here
-  // For now, we'll use a simple token validation
   try {
-    // Simple token validation (replace with JWT verification)
-    req.user = { 
-      id: token, 
-      role: req.headers['user-role'] || 'staff' 
-    };
+    // Verify JWT token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret_here_change_in_production');
+    req.user = decoded; // Contains { userId, email, name, role }
     next();
   } catch (error) {
+    console.error('Token verification error:', error);
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ 
+        success: false,
+        message: 'Token has expired. Please login again.' 
+      });
+    }
+    
     return res.status(403).json({ 
       success: false,
       message: 'Invalid token' 
@@ -29,7 +36,7 @@ const authenticateToken = (req, res, next) => {
 
 // Role-based authorization
 const authorizeAdmin = (req, res, next) => {
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'Admin') {
     return res.status(403).json({ 
       success: false,
       message: 'Admin access required' 

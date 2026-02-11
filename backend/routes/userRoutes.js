@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
-const bcrypt = require('bcrypt');
 const { 
   generateOTP, 
   sendWelcomeOTP, 
@@ -9,7 +8,7 @@ const {
   sendPasswordResetSuccess 
 } = require('../utils/emailService');
 
-// GET all users
+// GET all users (PROTECTED - Admin only)
 router.get('/', async (req, res) => {
   try {
     const users = await User.find().select('-password -otp -resetOtp').sort({ createdAt: -1 });
@@ -41,7 +40,7 @@ router.post('/', async (req, res) => {
     
     // Generate OTP
     const otp = generateOTP();
-    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
     
     // Create new user with OTP
     const user = new User({
@@ -62,7 +61,6 @@ router.post('/', async (req, res) => {
     
     if (!emailResult.success) {
       console.error('Failed to send OTP email:', emailResult.error);
-      // Still create user even if email fails
     }
     
     // Return user without sensitive data
@@ -115,10 +113,14 @@ router.post('/login', async (req, res) => {
     }
     
     // Verify password
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await user.comparePassword(password);
     if (!isPasswordValid) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
+    
+    // Update last login
+    user.lastLogin = new Date();
+    await user.save();
     
     // Check if first login requires OTP
     if (user.isFirstLogin) {
@@ -131,6 +133,9 @@ router.post('/login', async (req, res) => {
       });
     }
     
+    // Generate JWT token for normal login
+    const token = user.generateAuthToken();
+    
     // Return user data for normal login
     const userResponse = user.toObject();
     delete userResponse.password;
@@ -140,7 +145,8 @@ router.post('/login', async (req, res) => {
     res.json({
       requireOTP: false,
       message: 'Login successful',
-      user: userResponse
+      user: userResponse,
+      token: token // ADDED TOKEN HERE
     });
     
   } catch (error) {
@@ -172,7 +178,11 @@ router.post('/verify-otp', async (req, res) => {
     user.otp = null;
     user.otpExpiry = null;
     user.isFirstLogin = false;
+    user.lastLogin = new Date();
     await user.save();
+    
+    // Generate JWT token
+    const token = user.generateAuthToken();
     
     const userResponse = user.toObject();
     delete userResponse.password;
@@ -182,7 +192,8 @@ router.post('/verify-otp', async (req, res) => {
     res.json({
       success: true,
       message: 'OTP verified successfully',
-      user: userResponse
+      user: userResponse,
+      token: token // ADDED TOKEN HERE
     });
     
   } catch (error) {
@@ -356,15 +367,19 @@ router.post('/reset-password', async (req, res) => {
     user.password = newPassword;
     user.resetOtp = null;
     user.resetOtpExpiry = null;
-    user.isFirstLogin = false; // Mark as verified since they reset password
+    user.isFirstLogin = false;
     await user.save();
+    
+    // Generate new token after password reset
+    const token = user.generateAuthToken();
     
     // Send success email
     await sendPasswordResetSuccess(user.email, user.name);
     
     res.json({
       success: true,
-      message: 'Password reset successfully. You can now login.'
+      message: 'Password reset successfully. You can now login.',
+      token: token // ADDED TOKEN HERE
     });
     
   } catch (error) {
@@ -417,7 +432,37 @@ router.post('/resend-reset-otp', async (req, res) => {
   }
 });
 
-// UPDATE user (keep existing)
+// VALIDATE TOKEN (check if token is still valid)
+router.post('/validate-token', async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.status(400).json({ valid: false, message: 'Token is required' });
+    }
+    
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your_jwt_secret_here_change_in_production');
+    
+    // Check if user still exists and is active
+    const user = await User.findById(decoded.userId).select('-password -otp -resetOtp');
+    
+    if (!user || !user.isActive) {
+      return res.json({ valid: false, message: 'User not found or inactive' });
+    }
+    
+    res.json({
+      valid: true,
+      user: user,
+      token: token
+    });
+    
+  } catch (error) {
+    res.json({ valid: false, message: 'Invalid or expired token' });
+  }
+});
+
+// UPDATE user
 router.put('/:id', async (req, res) => {
   try {
     const { name, role, isActive } = req.body;
@@ -448,7 +493,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-// DELETE user (keep existing)
+// DELETE user
 router.delete('/:id', async (req, res) => {
   try {
     const user = await User.findById(req.params.id);
