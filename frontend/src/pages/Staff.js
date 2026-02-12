@@ -10,7 +10,7 @@ import "react-toastify/dist/ReactToastify.css";
 // Import DashboardHome and modules
 import DashboardHome from "./DashboardHome";
 import BDD from "./modules/BDD";
-import NC from "./modules/NC";
+import StaffNC from "./staff modules/staffNC";
 import SSF from "./modules/SSF";
 import CFIDP from "./modules/CFIDP";
 import OTOP from "./modules/OTOP";
@@ -346,8 +346,8 @@ const Staff = () => {
             {/* BDD Main Page */}
             <Route path="/bdd" element={<BDD />} />
             
-            {/* BDD Sub-modules */}
-            <Route path="/bdd/nc" element={<NC />} />
+            {/* BDD Sub-modules - USING StaffNC FOR NC */}
+            <Route path="/bdd/nc" element={<StaffNC />} />
             <Route path="/bdd/ssf" element={<SSF />} />
             <Route path="/bdd/cfidp" element={<CFIDP />} />
             <Route path="/bdd/rapid" element={<RAPID />} />
